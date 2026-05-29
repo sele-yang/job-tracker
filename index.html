@@ -120,11 +120,10 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
   <div class="setup-banner" id="setup-banner">
     <h3>📋 Google Sheets 연결하기</h3>
     <p>
-      아래에 Google Sheets 공개 URL을 붙여넣으면 데이터를 불러와요.<br>
-      시트 공개 설정: <code>공유 → 링크가 있는 모든 사용자 → 뷰어</code> 로 설정해 주세요.
+      Google Apps Script 배포 URL을 붙여넣으면 바로 연결돼요.<br>Apps Script → 배포 → 배포 관리에서 URL을 복사해 주세요.
     </p>
     <div class="setup-input-row">
-      <input type="text" id="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/...">
+      <input type="text" id="sheet-url-input" placeholder="https://script.google.com/macros/s/.../exec 또는 Google Sheets URL">
       <button class="btn-connect" onclick="connectSheet()">연결하기</button>
     </div>
   </div>
@@ -187,19 +186,17 @@ function dlTag(s) {
   return `<span class="dl dl-ok">D-${diff}</span>`;
 }
 
-// ── Sheet URL → CSV URL 변환 ──
-function toCsvUrl(url) {
+// ── URL 판별 ──
+function getDataUrl(url) {
   url = url.trim();
-  // 웹에 게시 링크: /spreadsheets/d/e/2PACX-.../pubhtml or /pub
-  const pubMatch = url.match(/\/spreadsheets\/d\/e\/([^\/]+)\//);
-  if (pubMatch) {
-    return `https://docs.google.com/spreadsheets/d/e/${pubMatch[1]}/pub?output=csv&gid=0`;
-  }
-  // 일반 편집 링크: /spreadsheets/d/SHEET_ID/
+  // Apps Script URL
+  if (url.includes('script.google.com/macros')) return { type: 'apps_script', url };
+  // 웹에 게시 링크
+  const pubMatch = url.match(/\/spreadsheets\/d\/e\/([^/]+)\//);
+  if (pubMatch) return { type: 'csv', url: `https://docs.google.com/spreadsheets/d/e/${pubMatch[1]}/pub?output=csv&gid=0` };
+  // 일반 편집 링크
   const editMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (editMatch) {
-    return `https://docs.google.com/spreadsheets/d/${editMatch[1]}/export?format=csv&gid=0`;
-  }
+  if (editMatch) return { type: 'csv', url: `https://docs.google.com/spreadsheets/d/${editMatch[1]}/export?format=csv&gid=0` };
   return null;
 }
 
@@ -289,8 +286,8 @@ async function loadData() {
   const url = localStorage.getItem(SHEET_KEY);
   if (!url) return;
 
-  const csvUrl = toCsvUrl(url);
-  if (!csvUrl) { showError('올바른 Google Sheets URL이 아니에요.'); return; }
+  const dataUrl = getDataUrl(url);
+  if (!dataUrl) { showError('올바른 URL이 아니에요. Apps Script URL 또는 Google Sheets URL을 입력해 주세요.'); return; }
 
   const btn = document.getElementById('refresh-btn');
   const tbody = document.getElementById('tbody');
@@ -299,15 +296,30 @@ async function loadData() {
   tbody.innerHTML = `<tr class="state-row"><td colspan="9"><div class="spinner-wrap"><div class="big-spinner"></div><span style="font-size:.8rem;color:var(--muted)">불러오는 중...</span></div></td></tr>`;
 
   try {
-    const res = await fetch(csvUrl);
+    const res = await fetch(dataUrl.url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    allJobs = parseCSV(text);
+    if (dataUrl.type === 'apps_script') {
+      const json = await res.json();
+      allJobs = json.map(row => ({
+        title:     String(row['공고명']||'').trim(),
+        company:   String(row['업체명']||'').trim(),
+        site:      String(row['사이트']||'').trim(),
+        salary:    String(row['연봉']||'').trim(),
+        type:      String(row['고용형태']||'').trim(),
+        probation: String(row['수습기간']||'').trim(),
+        link:      String(row['링크']||'').trim(),
+        status:    ['완료','제출완료','done'].includes(String(row['제출여부']||'').trim()) ? 'done' : 'pending',
+        deadline:  String(row['마감일']||'').trim(),
+      })).filter(j => j.title || j.company);
+    } else {
+      const text = await res.text();
+      allJobs = parseCSV(text);
+    }
     renderTable();
     document.getElementById('last-updated').textContent =
       '업데이트 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
   } catch(e) {
-    showError('시트를 불러오지 못했어요. 공개 설정을 확인해 주세요. (' + e.message + ')');
+    showError('데이터를 불러오지 못했어요. URL을 다시 확인해 주세요. (' + e.message + ')');
     tbody.innerHTML = `<tr class="state-row"><td colspan="9" style="color:var(--muted);text-align:center;padding:3rem">데이터를 불러올 수 없어요</td></tr>`;
   } finally {
     btn.classList.remove('spinning');
@@ -317,7 +329,6 @@ async function loadData() {
 function connectSheet() {
   const val = document.getElementById('sheet-url-input').value.trim();
   if (!val) { alert('URL을 입력해 주세요.'); return; }
-  if (!val.includes('spreadsheets')) { alert('Google Sheets URL을 붙여넣어 주세요.'); return; }
   localStorage.setItem(SHEET_KEY, val);
   document.getElementById('setup-banner').style.display = 'none';
   loadData();
