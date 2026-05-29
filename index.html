@@ -59,10 +59,15 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
 
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:500;padding:3px 9px;border-radius:4px;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
 .badge-done{background:var(--green-bg);color:var(--green)}
-.badge-pending{background:var(--amber-bg);color:var(--amber)}
 .type-badge{display:inline-flex;align-items:center;font-size:.7rem;font-weight:500;padding:2px 8px;border-radius:4px;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
 .type-정규직{background:#e8f4fd;color:#1a6fa8}
 .type-계약직{background:#fdf3e8;color:#a05c10}
+.badge-pending{background:var(--amber-bg);color:var(--amber)}
+.badge-submitted{background:var(--green-bg);color:var(--green)}
+.badge-pass1{background:#e8f4fd;color:#1a6fa8}
+.badge-pass2{background:#f0e8fd;color:#7c3aad}
+.badge-final{background:#fff8e1;color:#c77700;font-weight:700}
+.badge-fail{background:#fdecea;color:#c0392b}
 .salary-mono{font-family:'IBM Plex Mono',monospace;font-size:.8rem}
 .link-btn{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--accent);text-decoration:none;border:1px solid #f0c0aa;background:#fdf3ee;border-radius:5px;padding:3px 9px;transition:opacity .15s;white-space:nowrap}
 .link-btn:hover{opacity:.75}
@@ -136,8 +141,12 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
   <div class="toolbar">
     <div class="filter-group">
       <button class="filter-btn active" onclick="setFilter('all',this)">전체</button>
-      <button class="filter-btn" onclick="setFilter('done',this)">제출 완료</button>
-      <button class="filter-btn" onclick="setFilter('pending',this)">진행 중</button>
+      <button class="filter-btn" onclick="setFilter('pending',this)">미제출</button>
+      <button class="filter-btn" onclick="setFilter('submitted',this)">제출완료</button>
+      <button class="filter-btn" onclick="setFilter('pass1',this)">1차합격</button>
+      <button class="filter-btn" onclick="setFilter('pass2',this)">2차합격</button>
+      <button class="filter-btn" onclick="setFilter('final',this)">최종합격</button>
+      <button class="filter-btn" onclick="setFilter('fail',this)">불합격</button>
     </div>
     <div style="display:flex;gap:6px">
       <button class="refresh-btn" id="refresh-btn" onclick="loadData()">
@@ -168,6 +177,23 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
 
 <script>
 const SHEET_KEY = 'jt_sheet_url';
+const STATUS_LABEL = {
+  pending:   '○ 미제출',
+  submitted: '✓ 제출완료',
+  pass1:     '★ 1차합격',
+  pass2:     '★★ 2차합격',
+  final:     '🎉 최종합격',
+  fail:      '✕ 불합격',
+};
+function statusFromText(t) {
+  t = String(t||'').trim();
+  if (['최종합격','final','최종 합격'].includes(t)) return 'final';
+  if (['2차합격','pass2','2차 합격'].includes(t)) return 'pass2';
+  if (['1차합격','pass1','1차 합격'].includes(t)) return 'pass1';
+  if (['완료','제출완료','submitted','done','제출 완료'].includes(t)) return 'submitted';
+  if (['불합격','fail','탈락'].includes(t)) return 'fail';
+  return 'pending';
+}
 let allJobs = [], activeFilter = 'all';
 
 // ── 유틸 ──
@@ -237,7 +263,7 @@ function splitCSVLine(line) {
 
 // ── 렌더 ──
 function renderStats() {
-  const done = allJobs.filter(j => j.status === 'done').length;
+  const done = allJobs.filter(j => ['submitted','pass1','pass2','final'].includes(j.status)).length;
   const sals = allJobs.map(j => parseFloat(j.salary)).filter(s => !isNaN(s) && s > 0);
   const avg = sals.length ? Math.round(sals.reduce((a,b)=>a+b,0)/sals.length).toLocaleString()+'만' : '—';
   document.getElementById('s-total').textContent = allJobs.length || '—';
@@ -266,7 +292,7 @@ function renderTable() {
       `<td class="salary-mono">${j.salary ? Number(j.salary).toLocaleString()+'<span style="font-size:.7rem;color:var(--muted)">만</span>' : '<span style="color:var(--border2)">미기재</span>'}</td>` +
       `<td>${j.type ? `<span class="type-badge type-${esc(j.type)}">${esc(j.type)}</span>` : '<span style="color:var(--border2)">—</span>'}</td>` +
       `<td>${j.link ? `<a class="link-btn" href="${esc(j.link)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>바로가기</a>` : '<span style="color:var(--border2)">—</span>'}</td>` +
-      `<td><span class="badge ${j.status==='done'?'badge-done':'badge-pending'}">${j.status==='done'?'✓ 제출완료':'○ 미제출'}</span></td>` +
+      `<td><span class="badge badge-${j.status||'pending'}">${STATUS_LABEL[j.status||'pending']}</span></td>` +
       `<td>${dlTag(j.deadline)}</td>` +
       `<td style="font-size:.75rem;color:var(--muted)">${j.probation||'<span style="color:var(--border2)">—</span>'}</td>`;
     tbody.appendChild(tr);
@@ -308,7 +334,7 @@ async function loadData() {
         type:      String(row['고용형태']||'').trim(),
         probation: String(row['수습기간']||'').trim(),
         link:      String(row['링크']||'').trim(),
-        status:    ['완료','제출완료','done'].includes(String(row['제출여부']||'').trim()) ? 'done' : 'pending',
+        status:    statusFromText(row['제출여부']),
         deadline:  String(row['마감일']||'').trim(),
       })).filter(j => j.title || j.company);
     } else {
