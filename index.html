@@ -55,7 +55,7 @@ td{padding:14px 16px;font-size:.83rem;border-bottom:1px solid var(--border);vert
 tr:last-child td{border-bottom:none}
 tbody tr{transition:background .1s}
 tbody tr:hover td{background:var(--surface2)}
-col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:11%}col.c6{width:10%}col.c7{width:11%}col.c8{width:10%}col.c9{width:6%}
+col.c1{width:14%}col.c2{width:10%}col.c3{width:7%}col.c4{width:8%}col.c5{width:9%}col.c6{width:9%}col.c7{width:7%}col.c8{width:10%}col.c9{width:7%}col.ca{width:7%}col.cb{width:12%}
 
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:500;padding:3px 9px;border-radius:4px;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
 .badge-done{background:var(--green-bg);color:var(--green)}
@@ -101,6 +101,11 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 @media(max-width:700px){.stats-strip{flex-wrap:wrap}.topbar{padding:0 1rem}.main{padding:1rem}.setup-input-row{flex-direction:column}}
 </style>
+<meta property="og:title" content="예원 프로젝트">
+<meta property="og:description" content="취업 지원 현황을 한눈에 확인하세요">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sele-yang.github.io/job-tracker">
+<meta property="og:image" content="https://og-image.vercel.app/%EC%98%88%EC%9B%90%20%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8.png">
 </head>
 <body>
 
@@ -162,11 +167,11 @@ col.c1{width:20%}col.c2{width:13%}col.c3{width:9%}col.c4{width:10%}col.c5{width:
 
   <div class="table-card">
     <table>
-      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"><col class="c7"><col class="c8"><col class="c9"></colgroup>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"><col class="c7"><col class="c8"><col class="c9"><col class="ca"><col class="cb"></colgroup>
       <thead>
         <tr>
           <th>공고명</th><th>업체명</th><th>사이트</th><th>연봉</th>
-          <th>고용형태</th><th>링크</th><th>제출 여부</th><th>마감일</th><th>수습</th>
+          <th>고용형태</th><th>근무지역</th><th>링크</th><th>제출 여부</th><th>마감일</th><th>지원일</th><th>메모</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -291,10 +296,13 @@ function renderTable() {
       `<td style="color:var(--muted);font-size:.78rem">${j.site||'<span style="color:var(--border2)">—</span>'}</td>` +
       `<td class="salary-mono">${j.salary ? Number(j.salary).toLocaleString()+'<span style="font-size:.7rem;color:var(--muted)">만</span>' : '<span style="color:var(--border2)">미기재</span>'}</td>` +
       `<td>${j.type ? `<span class="type-badge type-${esc(j.type)}">${esc(j.type)}</span>` : '<span style="color:var(--border2)">—</span>'}</td>` +
+      `<td style="font-size:.78rem;color:var(--muted)">${j.location||'<span style="color:var(--border2)">—</span>'}</td>` +
       `<td>${j.link ? `<a class="link-btn" href="${esc(j.link)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>바로가기</a>` : '<span style="color:var(--border2)">—</span>'}</td>` +
       `<td><span class="badge badge-${j.status||'pending'}">${STATUS_LABEL[j.status||'pending']}</span></td>` +
+      `<td style="font-size:.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace">${j.probation||'—'}</td>` +
       `<td>${dlTag(j.deadline)}</td>` +
-      `<td style="font-size:.75rem;color:var(--muted)">${j.probation||'<span style="color:var(--border2)">—</span>'}</td>`;
+      `<td style="font-size:.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace">${j.applied||'<span style="color:var(--border2)">—</span>'}</td>` +
+      `<td title="${j.memo ? esc(j.memo) : ''}" style="font-size:.78rem;color:var(--muted)">${j.memo||'<span style="color:var(--border2)">—</span>'}</td>`;
     tbody.appendChild(tr);
   });
   renderStats();
@@ -336,6 +344,9 @@ async function loadData() {
         link:      String(row['링크']||'').trim(),
         status:    statusFromText(row['제출여부']),
         deadline:  String(row['마감일']||'').trim(),
+        location:  String(row['근무지역']||'').trim(),
+        applied:   String(row['지원일']||'').trim(),
+        memo:      String(row['메모']||'').trim(),
       })).filter(j => j.title || j.company);
     } else {
       const text = await res.text();
